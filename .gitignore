@@ -1,0 +1,16 @@
+# Private information
+.env
+
+# Virtual environment
+.venv/
+venv/
+
+# Chat history
+histories/
+
+# Log files
+*.log
+
+# Python Cache / Trash files
+__pycache__/
+*.pyc
