@@ -96,7 +96,7 @@ class Alice(GoogleBot):
                         self.chats.clear()
                         self.push_history()
                         await message.reply("I have finished cleaning the house.")
-                        LogSystem().write('n', f"{message.author.name} cleared entire chat history.")
+                        LogSystem().write('n', f"User {message.author.name} cleared entire chat history.")
                     except Exception as e:
                         await message.reply("Sorry, I couldn't clean the house.")
                         LogSystem().write('e', f"Error cleaning house: {e}")
@@ -112,17 +112,19 @@ class Alice(GoogleBot):
                     await message.reply("Sorry, I can't do that for you.")
 
             elif message.content.startswith(f'<@{self.discord_client.user.id}>, take a nap') or message.content.startswith(f'<@!{self.discord_client.user.id}>, take a nap'):
-                # Put the bot into sleep mode
+                # Put the bot into sleep mode (can only used by me)
                 if message.author.id == Alice.bot_permission[0]:
                     self.sleep = True
+                    LogSystem().write('n',f"User {message.author.name} put {self.bot_name} into sleep")
                     await message.reply("Goodnight!")
                 else:
                     await message.reply("Sorry, I can't do that for you.")
 
             elif message.content.startswith(f'<@{self.discord_client.user.id}>, wake up') or message.content.startswith(f'<@!{self.discord_client.user.id}>, wake up'):
-                # Put the bot out of sleep mode
+                # Put the bot out of sleep mode (can only used by me)
                 if message.author.id == Alice.bot_permission[0]:
                     self.sleep = False
+                    LogSystem().write('n',f"User {message.author.name} woke {self.bot_name} up")
                     await message.reply("Good morning!")
                 else:
                     await message.reply("Sorry, I can't do that for you.")
@@ -130,6 +132,7 @@ class Alice(GoogleBot):
             elif self.discord_client.user.mentioned_in(message):
                 if self.sleep:
                     await message.reply(f"zzz*{self.bot_name} is sleeping peacefully*zzz")
+                    return
                 try:
                     # Get the channel ID
                     channel_id = message.channel.id
