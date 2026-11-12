@@ -180,6 +180,7 @@ class Alice(GoogleBot):
                                 if attempt < max_retries:
                                     LogSystem().write('w', f"Model is having issue responding: {e}\nRetrying (attempt {attempt+1}/{max_retries}) in {retry_delay}s...")
                                     await asyncio.sleep(retry_delay)
+                                    attempt += 1
                                     retry_delay *= 2
                                     continue
                                 else:
