@@ -14,7 +14,7 @@ class Alice(GoogleBot):
         super().__init__(
             token_env_var="ALICE",
             bot_name="Alice Liddell",
-            model_name="gemini-3.5-flash",
+            model_name="gemini-3.5-flash-lite",
             history_file="histories/history_alice.json",
             prompt_file="prompts/bot_alice_sysprompt.txt"
         )
