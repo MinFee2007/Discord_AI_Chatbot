@@ -14,6 +14,7 @@ class BaseBot:
         self.history_file = history_file
         self.prompt_file = prompt_file
         self.chat_history: dict[int, list[dict[str, str]]] = {}
+        self.sleep = False
 
         # Configure intents and initialize the client as an instance attribute
         intents = discord.Intents.default()

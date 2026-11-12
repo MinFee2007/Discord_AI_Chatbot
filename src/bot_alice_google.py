@@ -8,7 +8,7 @@ from src.bot_base import GoogleBot
 
 class Alice(GoogleBot):
     # Any account whose id is one of these is able to use some specific commands on the bot.
-    bot_permission:list[int] = [794061552545824769,893757479995973643,1199361438460936405,806098560121962553]
+    bot_permission:list[int] = [794061552545824769,1066379211780141126,893757479995973643,806098560121962553]
 
     def __init__(self):
         super().__init__(
@@ -96,22 +96,40 @@ class Alice(GoogleBot):
                         self.chats.clear()
                         self.push_history()
                         await message.reply("I have finished cleaning the house.")
-                        LogSystem().write('n', f"Master {message.author.name} cleared entire chat history.")
+                        LogSystem().write('n', f"{message.author.name} cleared entire chat history.")
                     except Exception as e:
                         await message.reply("Sorry, I couldn't clean the house.")
                         LogSystem().write('e', f"Error cleaning house: {e}")
                 else:
                     await message.reply("Sorry, I can't do that for you.")
 
-            elif message.content.startswith(f'<@{self.discord_client.user.id}>, take a nap') or message.content.startswith(f'<@!{self.discord_client.user.id}>, take a nap'):
+            elif message.content.startswith(f'<@{self.discord_client.user.id}>, write a new diary') or message.content.startswith(f'<@!{self.discord_client.user.id}>, write a new diary'):
                 # Clear bot log file (can only used by me)
                 if message.author.id == Alice.bot_permission[0]:
                     LogSystem().clear()
+                    await message.reply("I have bought a new diary.")
+                else:
+                    await message.reply("Sorry, I can't do that for you.")
+
+            elif message.content.startswith(f'<@{self.discord_client.user.id}>, take a nap') or message.content.startswith(f'<@!{self.discord_client.user.id}>, take a nap'):
+                # Put the bot into sleep mode
+                if message.author.id == Alice.bot_permission[0]:
+                    self.sleep = True
                     await message.reply("Goodnight!")
                 else:
                     await message.reply("Sorry, I can't do that for you.")
 
+            elif message.content.startswith(f'<@{self.discord_client.user.id}>, wake up') or message.content.startswith(f'<@!{self.discord_client.user.id}>, wake up'):
+                # Put the bot out of sleep mode
+                if message.author.id == Alice.bot_permission[0]:
+                    self.sleep = False
+                    await message.reply("Good morning!")
+                else:
+                    await message.reply("Sorry, I can't do that for you.")
+
             elif self.discord_client.user.mentioned_in(message):
+                if self.sleep:
+                    await message.reply(f"zzz*{self.bot_name} is sleeping peacefully*zzz")
                 try:
                     # Get the channel ID
                     channel_id = message.channel.id
