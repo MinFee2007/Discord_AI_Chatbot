@@ -35,13 +35,23 @@
 #                     channel_id = message.channel.id
 #                     # Get the username
 #                     user_name = message.author.name
+#                     # Get the user's nickname
+#                     user_nickname = message.author.display_name
 
 #                     # Handle prompt from user
-#                     user_prompt = message.content.replace(f'<@{self.discord_client.user.id}>', '').strip()
-#                     if not user_prompt:
+#                     # Replace the raw bot ping(s) with bot name call
+#                     user_message = message.content.replace(f'<@{self.discord_client.user.id}>',self.bot_name)
+#                     if not user_message:
 #                         raise Exception(f"Trouble with handling user's message")
+
+#                     # Replace the raw user ping(s) with name call
+#                     for member in message.mentions:
+#                         if member.id == self.discord_client.user.id:
+#                             continue
+#                         user_message = user_message.replace(f"<@{member.id}>",f"{user_nickname}")
+#                         user_message = user_message.replace(f"<@!{member.id}>",f"{user_nickname}")
                     
-#                     user_prompt = "At " + TimeSystem().get_time() + f", user {user_name} said: " + user_prompt
+#                     user_prompt = "At " + TimeSystem().get_time() + f", username {user_name} with nickname {user_nickname} said: " + user_message
 #                     LogSystem().write('m',user_prompt)
 
 #                     # Create new channel chat history and add system prompt in it if it has not existed yet
