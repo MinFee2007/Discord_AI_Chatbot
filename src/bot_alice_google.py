@@ -131,13 +131,13 @@ class Alice(GoogleBot):
 
             elif self.discord_client.user.mentioned_in(message):
                 if self.sleep:
-                    await message.reply(f"zzz*{self.bot_name} is sleeping peacefully*zzz")
+                    await message.reply(f"zzz *{self.bot_name} is sleeping peacefully* zzz")
                     return
                 try:
                     # Get the channel ID
                     channel_id = message.channel.id
                     # Get the username
-                    user_name = message.author.name
+                    user_id = message.author.id
                     # Get the user's nickname
                     user_nickname = message.author.display_name
 
@@ -153,7 +153,7 @@ class Alice(GoogleBot):
                             continue
                         user_message = user_message.replace(f"<@{member.id}>",f"{member.display_name}").replace(f"<@!{member.id}>",f"{member.display_name}")
                     
-                    user_prompt = "At " + TimeSystem().get_time() + f", username {user_name} with nickname {user_nickname} said: " + user_message
+                    user_prompt = "At " + TimeSystem().get_time() + f", user with ID {user_id} and nickname {user_nickname} said: " + user_message
                     LogSystem().write('m',user_prompt)
 
                     # Create new channel chat history/chat session and add system prompt in it if it has not existed yet
