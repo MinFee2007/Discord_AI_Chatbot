@@ -303,7 +303,7 @@ class Alice(GoogleBot):
                 self.push_history_file()
                 
                 # Send reply
-                await self.send_reply(message=message,reply=reply)
+                await self.send_reply(message=message,text=reply)
 
         except Exception as e:
             LogSystem().write('e',f"{e}")
@@ -503,7 +503,7 @@ class Alice(GoogleBot):
                 self.push_chat_history(channel_id=channel_id, user_prompt=user_prompt, response=reply)
                 self.push_history_file()
 
-                await self.send_reply(message=message,reply=reply)
+                await self.send_reply(message=message,text=reply)
 
         except Exception as e:
             LogSystem().write('e',f"{e}")
