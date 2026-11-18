@@ -14,3 +14,5 @@ histories/
 # Python Cache / Trash files
 __pycache__/
 *.pyc
+
+test.py

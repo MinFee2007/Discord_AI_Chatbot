@@ -7,14 +7,15 @@ from google.genai import types, chats
 from src.system_log import LogSystem
 
 class BaseBot:
-    def __init__(self, token_env_var=None, bot_name=None, model_name=None, history_file=None, prompt_file=None):
+    def __init__(self, token_env_var=None, bot_name=None, model_name=None, history_file=None, prompt_file=None, message_limit=60):
         self.token_env_var = token_env_var
         self.bot_name = bot_name
         self.model_name = model_name
         self.history_file = history_file
         self.prompt_file = prompt_file
+        self.message_limit = message_limit
         self.chat_history: dict[int, list[dict[str, str]]] = {}
-        self.sleep = False
+        self.is_sleeping = False
 
         # Configure intents and initialize the client as an instance attribute
         intents = discord.Intents.default()
@@ -22,18 +23,20 @@ class BaseBot:
         self.discord_client = discord.Client(intents=intents)
         
         # Load previous chat history
-        self.pull_history()
+        self.pull_history_file()
 
-    def push_history(self):
+    def push_history_file(self):
         if not self.history_file:
             LogSystem().write('e',"Bot's history file has not been initialized yet.")
             return
         # Automatically create history file
-        os.makedirs(os.path.dirname(self.history_file), exist_ok=True)
-        with open(self.history_file, 'w') as file:
-            json.dump(self.chat_history,indent=4,fp=file)
+        dir_name = os.path.dirname(self.history_file)
+        if dir_name:
+            os.makedirs(dir_name, exist_ok=True)
+        with open(self.history_file, 'w', encoding='utf-8') as file:
+            json.dump(self.chat_history,indent=4,ensure_ascii=False,fp=file)
     
-    def pull_history(self):
+    def pull_history_file(self):
         if not self.history_file:
             LogSystem().write('e',"Bot's history file has not been initialized yet.")
             return
@@ -61,7 +64,7 @@ class BaseBot:
 
     def __del__(self):
         try:
-            self.push_history()
+            self.push_history_file()
             if self.bot_name:
                 LogSystem().write('n',f"Bot {self.bot_name} has stopped working")
         except Exception:

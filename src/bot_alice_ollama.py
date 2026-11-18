@@ -1,9 +1,9 @@
 # import discord
 # import ollama
 # import asyncio
+# import datetime
 
 # from src.system_log import LogSystem
-# from src.system_time import TimeSystem
 # from src.bot_base import OllamaBot
 
 # class Alice(OllamaBot):
@@ -51,7 +51,7 @@
 #                         user_message = user_message.replace(f"<@{member.id}>",f"{user_nickname}")
 #                         user_message = user_message.replace(f"<@!{member.id}>",f"{user_nickname}")
                     
-#                     user_prompt = "At " + TimeSystem().get_time() + f", username {user_name} with nickname {user_nickname} said: " + user_message
+#                     user_prompt = "At " + str(datetime.datetime.now()) + f", username {user_name} with nickname {user_nickname} said: " + user_message
 #                     LogSystem().write('m',user_prompt)
 
 #                     # Create new channel chat history and add system prompt in it if it has not existed yet
@@ -90,7 +90,7 @@
 
 #                         # Get the response content
 #                         reply = response['message']['content']
-#                         formatted_reply = "At " + TimeSystem().get_time() + f", assistant {self.bot_name} said: " + reply
+#                         formatted_reply = "At " + str(datetime.datetime.now()) + f", assistant {self.bot_name} said: " + reply
 #                         LogSystem().write('m',formatted_reply)
 
 #                         # Add the assistant's reply into the chat history
@@ -100,7 +100,7 @@
 #                         })
 
 #                         # Update history file
-#                         self.push_history()
+#                         self.push_history_file()
                         
 #                         # Send reply
 #                         await message.channel.send(reply)
