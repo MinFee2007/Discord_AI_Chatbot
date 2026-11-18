@@ -65,7 +65,7 @@ class Alice(GoogleBot):
                 if self.is_sleeping:
                     await message.reply(f"zzz *{self.bot_name} is sleeping peacefully* zzz")
                     return
-                if "weather" in message.content:
+                if " weather " in message.content.lower():
                     # Weather forecasting
                     await self.weather_forecast(message=message)
                 else:
