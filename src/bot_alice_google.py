@@ -21,7 +21,7 @@ class Alice(GoogleBot):
             model_name="gemini-3.5-flash-lite",
             history_file="histories/history_alice.json",
             prompt_file="prompts/bot_alice_sysprompt.txt",
-            message_limit = 60
+            message_limit=60
         )
 
         # Register events for client

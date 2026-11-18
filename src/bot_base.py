@@ -80,13 +80,14 @@ class OllamaBot(BaseBot):
         )
 
 class GoogleBot(BaseBot):
-    def __init__(self, token_env_var=None, bot_name=None, model_name=None, history_file=None, prompt_file=None):
+    def __init__(self, token_env_var=None, bot_name=None, model_name=None, history_file=None, prompt_file=None, message_limit=60):
         super().__init__(
             token_env_var,
             bot_name,
             model_name,
             history_file,
-            prompt_file
+            prompt_file,
+            message_limit
         )
         self.genai_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         self.config = None
