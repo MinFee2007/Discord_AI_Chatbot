@@ -402,8 +402,8 @@ class Alice(GoogleBot):
                         }
                     }
 
-                    # Include daily forecast details if the user asked for forecast days (> 0)
-                    if req_days > 0 and "forecast" in data:
+                    # Include daily forecast
+                    if "forecast" in data:
                         city_data["forecast"] = {}
                         for day_entry in data["forecast"]["forecastday"]:
                             date_str = day_entry["date"]
@@ -440,7 +440,7 @@ class Alice(GoogleBot):
                         continue
                     else:
                         LogSystem().write('e', f"Failed to get weather info for {destination} after retries: {e}")
-                        continue
+                        raise Exception(f"Failed to get weather info for {destination} after retries: {e}")
 
         return weather_info
 
