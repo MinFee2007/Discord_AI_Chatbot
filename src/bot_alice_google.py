@@ -135,7 +135,7 @@ class Alice(GoogleBot):
                             # Get target channel id
                             target_channel_id = None
                             parts = message.content.split("in ",1)
-                            arg = parts[1].strip if len(parts) > 1 else ""
+                            arg = parts[1].strip() if len(parts) > 1 else ""
                             if arg == 'here':
                                 target_channel_id = message.channel.id
                             elif arg.isdigit():
@@ -161,7 +161,7 @@ class Alice(GoogleBot):
                             # Get target channel id
                             target_channel_id = None
                             parts = message.content.split("in ",1)
-                            arg = parts[1].strip if len(parts) > 1 else ""
+                            arg = parts[1].strip() if len(parts) > 1 else ""
                             if arg == 'here':
                                 target_channel_id = message.channel.id
                             elif arg.isdigit():
