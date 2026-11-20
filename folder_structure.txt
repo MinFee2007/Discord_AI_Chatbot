@@ -1,0 +1,22 @@
+Project_DiscordBot
+├── .venv/
+├── histories/
+     └── history_alice.json
+├── permission/
+     ├── bot_alice_forbidden_channel.txt
+     ├── bot_alice_forbidden_user.txt
+     └── bot_alice_permission_cmd.txt
+├── prompts/
+     └── bot_alice_sysprompt.txt
+├── src/
+     ├── bot_alice_google.py
+     ├── bot_alice_ollama.py
+     ├── bot_base.py
+     ├── manager.py
+     ├── output_weather.py
+     └── system_log.py
+├── .env
+├── .gitignore
+├── bot.log
+├── main.py
+└── requirements.txt
