@@ -310,29 +310,36 @@ class BaseBot:
 
     async def check_chess_over(self, message:discord.Message, bot_turn:bool) -> bool:
         """Check if the chess game is over, and handle it (return True on game over, False on vice versa)"""
-        manager: ChessManager = self.active_chess_game[message.channel.id]["manager"]
+        chess_manager: ChessManager = self.active_chess_game[message.channel.id]["manager"]
         bot_color: chess.Color = self.active_chess_game[message.channel.id]["bot_color"]
-        outcome: chess.Outcome = manager.get_outcome()
+        outcome: chess.Outcome = chess_manager.get_outcome()
         if outcome:
+            last_move: chess.Move = chess_manager.get_last_move()
+            board_img_bytestream = await asyncio.to_thread(
+                chess_manager.render_board_image,
+                last_move=last_move,
+                flipped=True if bot_color==chess.WHITE else False
+            )
+            board_img = discord.File(fp=board_img_bytestream, filename="board.png")
             if outcome.winner is None:
                 # Draw
                 LogSystem().write('n',f"The result of the chess game between {message.author.id} and {self.bot_name} in channel {message.channel.id} is a draw")
                 reply = await self.get_response("System Notification: This game of chess is a draw. Say something to your opponent.", message.channel.id)
-                await self.send_reply(message, reply)
+                await message.reply(reply, file=board_img)
                 del self.active_chess_game[message.channel.id]
                 return True
             elif outcome.winner == bot_color:
                 # Winner is bot
                 LogSystem().write('n',f"The winner of the chess game between {message.author.id} and {self.bot_name} in channel {message.channel.id} is {self.bot_name}")
                 reply = await self.get_response("System Notification: You won the chess game. Say something to your opponent.", message.channel.id)
-                await self.send_reply(message, reply)
+                await message.reply(reply, file=board_img)
                 del self.active_chess_game[message.channel.id]
                 return True
             else:
                 # Winner is user
                 LogSystem().write('n',f"The winner of the chess game between {message.author.id} and {self.bot_name} in channel {message.channel.id} is {message.author.id}")
                 reply = await self.get_response("System Notification: You lost the chess game. Say something to your opponent.", message.channel.id)
-                await self.send_reply(message, reply)
+                await message.reply(reply, file=board_img)
                 del self.active_chess_game[message.channel.id]
                 return True
         else:
@@ -352,7 +359,7 @@ class BaseBot:
         # Getting best moves recommended for bot
         best_moves = await asyncio.to_thread(
             chess_manager.get_best_move,
-            time_limit_ns=500_000_000,
+            time_limit_ns=800_000_000,
             top_k=3
         )
         # Format into the best moves list
@@ -376,6 +383,7 @@ class BaseBot:
         return await self.get_response(prompt, channel_id, config)
 
     async def play_bot_turn(self, message:discord.Message, first_move:bool, user_move:str, user_comment:str|None):
+        """Play the bot's turn"""
         chess_manager:ChessManager = self.active_chess_game[message.channel.id]["manager"]
         bot_response:ChessResponse = await self.generate_chess_move(message.channel.id, message.author.id, message.author.display_name, first_move, user_move, user_comment)
         bot_comment = bot_response.comment if bot_response.comment else "Your turn"
@@ -461,7 +469,7 @@ class BaseBot:
                 await message.reply(bot_response, file=board_img)
 
     async def play_chess_turn(self, message:discord.Message):
-        """Handle user's chess turn"""
+        """Handle user's chess turn, then automatically play the bot's turn right after with checking if the game is over"""
         # Extract move and comment from the message
         move_str, user_comment = self.parse_chess_turn_message(message.content, self.discord_client.user.id)
         
