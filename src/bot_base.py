@@ -378,12 +378,11 @@ class BaseBot:
     async def play_bot_turn(self, message:discord.Message, first_move:bool, user_move:str, user_comment:str|None):
         chess_manager:ChessManager = self.active_chess_game[message.channel.id]["manager"]
         bot_response:ChessResponse = await self.generate_chess_move(message.channel.id, message.author.id, message.author.display_name, first_move, user_move, user_comment)
-        bot_move:chess.Move = chess.Move.from_uci(bot_response.move)
         bot_comment = bot_response.comment if bot_response.comment else "Your turn"
         bot_color = self.active_chess_game[message.channel.id]["bot_color"]
         try:
             # Bot makes the move
-            chess_manager.make_move(bot_response.move)
+            bot_move = chess_manager.make_move(bot_response.move)
         except ValueError:
             # Bot made an illegal move, rerun the move finding algorithm and get the best move
             fallback_moves = await asyncio.to_thread(
@@ -411,7 +410,12 @@ class BaseBot:
         
         # Build the starting setup
         game_setup:ChessGameSetup = await self.build_initial_chess_setup(message=message)
+        # First side to get first move
         first_color = game_setup.board_setup.split(" ")[1]
+        # Give the first turn to a random side if it has not been given yet
+        if game_setup.first_turn == None:
+            game_setup.first_turn = random.choice([True, False])
+        # Get bot color based on first side to get first turn
         if first_color == "w":
             bot_color = chess.WHITE if game_setup.first_turn else chess.BLACK
         elif first_color == "b":
@@ -436,9 +440,6 @@ class BaseBot:
             del self.active_chess_game[message.channel.id]
             raise Exception(f"User {message.author.id} was unable to set up initial chess board in channel {message.channel.id} with FEN format: {game_setup.board_setup}")
         
-        # Give the first turn to a random side if it has not been given yet
-        if game_setup.first_turn == None:
-            game_setup.first_turn = random.choice([True, False])
         async with message.channel.typing():
             if game_setup.first_turn:
                 # Bot gets the first turn, move and show chess board, wait for user's reply
@@ -447,9 +448,10 @@ class BaseBot:
                     return
             else:
                 # User gets the first turn, show chess board, wait for user's reply
+                self.ensure_chat_session(message.channel.id)
                 comment_part = self.handle_user_message(message)
                 prompt = "At " + str(datetime.datetime.now()) + f", user with ID {message.author.id} and nickname {message.author.display_name} invited you to play a chess game and said: {comment_part}"
-                bot_response = self.get_response(prompt, message.channel.id)
+                bot_response = await self.get_response(prompt, message.channel.id)
                 board_img_bytestream = await asyncio.to_thread(
                     chess_manager.render_board_image,
                     None,
@@ -484,6 +486,7 @@ class BaseBot:
 
     async def chess_surrender(self, message:discord.Message):
         """Handle user's surrender in chess"""
+        self.ensure_chat_session(message.channel.id)
         del self.active_chess_game[message.channel.id]
         reply = await self.get_response("System Notification: Your opponent surrendered the chess game. Say something to them.", message.channel.id)
         await self.send_reply(message, reply)
@@ -499,7 +502,7 @@ class BaseBot:
             flipped=True if bot_color==chess.WHITE else False
         )
         board_img = discord.File(fp=board_img_bytestream, filename="board.png")
-        message.reply(board_img)
+        await message.reply(file=board_img)
 
     def __del__(self):
         try:

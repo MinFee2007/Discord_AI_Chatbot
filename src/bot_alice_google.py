@@ -234,7 +234,6 @@ class Alice(GoogleBot):
                     except Exception as e:
                         await message.reply("Sorry, I'm having a bit of an issue.")
                         LogSystem().write('e',f"{e}")
-
                 elif message.content.startswith("Show the board"):
                     # Reveal the board without making a move
                     if (message.author.id in self.forbidden_users) or (message.channel.id in self.forbidden_channels) or (message.channel.id not in self.active_chess_game) or (self.active_chess_game[message.channel.id]["player_id"] != message.author.id):
