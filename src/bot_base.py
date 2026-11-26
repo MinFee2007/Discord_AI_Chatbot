@@ -6,6 +6,7 @@ import asyncio
 import requests
 import chess
 import re
+import random
 from google import genai
 from google.genai import types, chats, errors
 
@@ -338,7 +339,7 @@ class BaseBot:
             # The game is still in progress
             return False
 
-    async def generate_chess_move(self, channel_id:int, user_id:int, user_nickname:str, first_move:bool, user_move:str, user_comment:str) -> ChessResponse:
+    async def generate_chess_move(self, channel_id:int, user_id:int, user_nickname:str, first_move:bool, user_move:str, user_comment:str|None) -> ChessResponse:
         """Generate the bot move"""
         # Ensure chat session is existed
         self.ensure_chat_session(channel_id)
@@ -357,7 +358,7 @@ class BaseBot:
         # Format into the best moves list
         formatted_best_moves = []
         for move, score in best_moves:
-            formatted_best_moves.append(f"(move: {move.uci()},score: {score})")
+            formatted_best_moves.append(f"(move: {move.uci()}, score: {score})")
 
         # Build prompt
         if first_move:
@@ -365,7 +366,7 @@ class BaseBot:
         else:
             prompt = "At " + str(datetime.datetime.now()) + f", user with ID {user_id} and nickname {user_nickname} made a move ({user_move}) {comment_part}"
         prompt += (f"\nSystem Instruction:\nHere's the state of the board based on Forsyth-Edwards Notation (FEN) format: {chess_manager.board_to_fen(None)}\n"
-                    f"Make your move as "+bot_color+"\n"
+                    f"Make your move as " + bot_color + "\n"
                     f"Recommended best move(s):\n" + "".join(move_str + "\n" for move_str in formatted_best_moves))
         # Config
         config = types.GenerateContentConfig(
@@ -374,7 +375,7 @@ class BaseBot:
         )
         return await self.get_response(prompt, channel_id, config)
 
-    async def play_bot_turn(self, message:discord.Message, first_move:bool, user_move:str, user_comment:str):
+    async def play_bot_turn(self, message:discord.Message, first_move:bool, user_move:str, user_comment:str|None):
         chess_manager:ChessManager = self.active_chess_game[message.channel.id]["manager"]
         bot_response:ChessResponse = await self.generate_chess_move(message.channel.id, message.author.id, message.author.display_name, first_move, user_move, user_comment)
         bot_move:chess.Move = chess.Move.from_uci(bot_response.move)
@@ -434,7 +435,10 @@ class BaseBot:
         except ValueError:
             del self.active_chess_game[message.channel.id]
             raise Exception(f"User {message.author.id} was unable to set up initial chess board in channel {message.channel.id} with FEN format: {game_setup.board_setup}")
-
+        
+        # Give the first turn to a random side if it has not been given yet
+        if game_setup.first_turn == None:
+            game_setup.first_turn = random.choice([True, False])
         async with message.channel.typing():
             if game_setup.first_turn:
                 # Bot gets the first turn, move and show chess board, wait for user's reply
@@ -443,13 +447,16 @@ class BaseBot:
                     return
             else:
                 # User gets the first turn, show chess board, wait for user's reply
+                comment_part = self.handle_user_message(message)
+                prompt = "At " + str(datetime.datetime.now()) + f", user with ID {message.author.id} and nickname {message.author.display_name} invited you to play a chess game and said: {comment_part}"
+                bot_response = self.get_response(prompt, message.channel.id)
                 board_img_bytestream = await asyncio.to_thread(
                     chess_manager.render_board_image,
                     None,
                     True if bot_color==chess.WHITE else False
                 )
                 board_img = discord.File(fp=board_img_bytestream, filename="board.png")
-                await message.reply("Your turn", file=board_img)
+                await message.reply(bot_response, file=board_img)
 
     async def play_chess_turn(self, message:discord.Message):
         """Handle user's chess turn"""
