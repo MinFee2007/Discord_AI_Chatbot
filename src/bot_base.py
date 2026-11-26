@@ -4,11 +4,15 @@ import os
 import discord
 import asyncio
 import requests
+import chess
+import re
 from google import genai
 from google.genai import types, chats, errors
 
-from src.output_weather import WeatherRequest
 from src.system_log import LogSystem
+from src.output_weather import WeatherRequest
+from src.output_chess import ChessGameSetup, ChessResponse
+from src.manager_chess import ChessManager
 
 class BaseBot:
     def __init__(self, token_env_var=None, bot_name=None, model_name=None, history_filepath=None, prompt_filepath=None, permission_filepath=None, forbidden_channels_filepath=None, forbidden_users_filepath=None, message_limit=60):
@@ -26,6 +30,7 @@ class BaseBot:
         self.bot_permission_users:list[int] = []
         self.forbidden_channels:list[int] = []
         self.forbidden_users:list[int] = []
+        self.active_chess_game:dict[int,dict] = {} # {channel_id:{"manager":ChessManager(), "player_id": int, "bot_color":chess.BLACK|chess.WHITE}}
 
         # Configure intents and initialize the client as an instance attribute
         intents = discord.Intents.default()
@@ -131,7 +136,7 @@ class BaseBot:
                 for id in self.forbidden_users:
                     file.write(f"{id}\n")
 
-    def handle_user_message(self,message:discord.Message):
+    def handle_user_message(self,message:discord.Message) -> str:
         """Handle user message"""
         # Replace the raw bot ping(s) with bot name call
         user_message = message.content.replace(f'<@{self.discord_client.user.id}>', self.bot_name).replace(f'<@!{self.discord_client.user.id}>', self.bot_name)
@@ -278,6 +283,217 @@ class BaseBot:
 
             await self.send_reply(message=message,text=reply)
 
+    def parse_chess_turn_message(self, raw_content: str, bot_id: int) -> tuple[str | None, str]:
+        """
+        Extract (move_str, user_comment) from user message:
+        move: <UCI/SAN move>
+        <user_comment>
+        """
+        # Delete bot tag
+        cleaned = (
+            raw_content
+            .replace(f"<@{bot_id}>", "")
+            .replace(f"<@!{bot_id}>", "")
+            .strip()
+        )
+        # Extract
+        pattern = r"^move\s*:\s*([^\r\n]+)(?:\r?\n(.*))?$"
+        match = re.match(pattern, cleaned, flags=re.IGNORECASE | re.DOTALL)
+
+        if not match:
+            return None, cleaned  # Wrong syntax "move: ..."
+
+        move_str = match.group(1).strip()
+        user_comment = match.group(2).strip() if match.group(2) else ""
+        return move_str, user_comment
+
+    async def check_chess_over(self, message:discord.Message, bot_turn:bool) -> bool:
+        """Check if the chess game is over, and handle it (return True on game over, False on vice versa)"""
+        manager: ChessManager = self.active_chess_game[message.channel.id]["manager"]
+        bot_color: chess.Color = self.active_chess_game[message.channel.id]["bot_color"]
+        outcome: chess.Outcome = manager.get_outcome()
+        if outcome:
+            if outcome.winner is None:
+                # Draw
+                LogSystem().write('n',f"The result of the chess game between {message.author.id} and {self.bot_name} in channel {message.channel.id} is a draw")
+                reply = await self.get_response("System Notification: This game of chess is a draw. Say something to your opponent.", message.channel.id)
+                await self.send_reply(message, reply)
+                del self.active_chess_game[message.channel.id]
+                return True
+            elif outcome.winner == bot_color:
+                # Winner is bot
+                LogSystem().write('n',f"The winner of the chess game between {message.author.id} and {self.bot_name} in channel {message.channel.id} is {self.bot_name}")
+                reply = await self.get_response("System Notification: You won the chess game. Say something to your opponent.", message.channel.id)
+                await self.send_reply(message, reply)
+                del self.active_chess_game[message.channel.id]
+                return True
+            else:
+                # Winner is user
+                LogSystem().write('n',f"The winner of the chess game between {message.author.id} and {self.bot_name} in channel {message.channel.id} is {message.author.id}")
+                reply = await self.get_response("System Notification: You lost the chess game. Say something to your opponent.", message.channel.id)
+                await self.send_reply(message, reply)
+                del self.active_chess_game[message.channel.id]
+                return True
+        else:
+            # The game is still in progress
+            return False
+
+    async def generate_chess_move(self, channel_id:int, user_id:int, user_nickname:str, first_move:bool, user_move:str, user_comment:str) -> ChessResponse:
+        """Generate the bot move"""
+        # Ensure chat session is existed
+        self.ensure_chat_session(channel_id)
+        # Get chess manager of the channel
+        chess_manager: ChessManager = self.active_chess_game[channel_id]["manager"]
+        # Bot side
+        bot_color = "white" if self.active_chess_game[channel_id]["bot_color"] == chess.WHITE else "black"
+        # Handled user comment
+        comment_part = f"and said: {user_comment}" if user_comment else "without saying anything."
+        # Getting best moves recommended for bot
+        best_moves = await asyncio.to_thread(
+            chess_manager.get_best_move,
+            time_limit_ns=500_000_000,
+            top_k=3
+        )
+        # Format into the best moves list
+        formatted_best_moves = []
+        for move, score in best_moves:
+            formatted_best_moves.append(f"(move: {move.uci()},score: {score})")
+
+        # Build prompt
+        if first_move:
+            prompt = "At " + str(datetime.datetime.now()) + f", user with ID {user_id} and nickname {user_nickname} invited you to play a chess game {comment_part}"
+        else:
+            prompt = "At " + str(datetime.datetime.now()) + f", user with ID {user_id} and nickname {user_nickname} made a move ({user_move}) {comment_part}"
+        prompt += (f"\nSystem Instruction:\nHere's the state of the board based on Forsyth-Edwards Notation (FEN) format: {chess_manager.board_to_fen(None)}\n"
+                    f"Make your move as "+bot_color+"\n"
+                    f"Recommended best move(s):\n" + "".join(move_str + "\n" for move_str in formatted_best_moves))
+        # Config
+        config = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=ChessResponse
+        )
+        return await self.get_response(prompt, channel_id, config)
+
+    async def play_bot_turn(self, message:discord.Message, first_move:bool, user_move:str, user_comment:str):
+        chess_manager:ChessManager = self.active_chess_game[message.channel.id]["manager"]
+        bot_response:ChessResponse = await self.generate_chess_move(message.channel.id, message.author.id, message.author.display_name, first_move, user_move, user_comment)
+        bot_move:chess.Move = chess.Move.from_uci(bot_response.move)
+        bot_comment = bot_response.comment if bot_response.comment else "Your turn"
+        bot_color = self.active_chess_game[message.channel.id]["bot_color"]
+        try:
+            # Bot makes the move
+            chess_manager.make_move(bot_response.move)
+        except ValueError:
+            # Bot made an illegal move, rerun the move finding algorithm and get the best move
+            fallback_moves = await asyncio.to_thread(
+                chess_manager.get_best_move,
+                time_limit_ns=100_000_000,
+                top_k=1
+            )
+            bot_move:chess.Move = fallback_moves[0][0]
+            chess_manager.board.push(bot_move)
+
+        # Create the board image for the player
+        board_img_bytestream = await asyncio.to_thread(
+            chess_manager.render_board_image,
+            last_move=bot_move,
+            flipped=True if bot_color==chess.WHITE else False
+        )
+        board_img = discord.File(fp=board_img_bytestream, filename="board.png")
+
+        # Reply
+        await message.reply(bot_comment, file=board_img)
+
+    async def start_chess(self, message:discord.Message):
+        """Start a chess game with a player"""
+        LogSystem().write('n',f"User {message.author.name} started a chess game with {self.bot_name}")
+        
+        # Build the starting setup
+        game_setup:ChessGameSetup = await self.build_initial_chess_setup(message=message)
+        first_color = game_setup.board_setup.split(" ")[1]
+        if first_color == "w":
+            bot_color = chess.WHITE if game_setup.first_turn else chess.BLACK
+        elif first_color == "b":
+            bot_color = chess.BLACK if game_setup.first_turn else chess.WHITE
+        else:
+            raise Exception("Unable to identify the bot's side")
+
+        # Initialize the chess game
+        self.active_chess_game[message.channel.id] = {
+            "manager": ChessManager(),
+            "player_id": message.author.id,
+            "bot_color": bot_color
+        }
+        # Process user message
+        user_comment = self.handle_user_message(message)
+
+        # Set up the board
+        chess_manager: ChessManager = self.active_chess_game[message.channel.id]["manager"]
+        try:
+            chess_manager.fen_to_board(None, game_setup.board_setup)
+        except ValueError:
+            del self.active_chess_game[message.channel.id]
+            raise Exception(f"User {message.author.id} was unable to set up initial chess board in channel {message.channel.id} with FEN format: {game_setup.board_setup}")
+
+        async with message.channel.typing():
+            if game_setup.first_turn:
+                # Bot gets the first turn, move and show chess board, wait for user's reply
+                await self.play_bot_turn(message, True, None, user_comment)
+                if await self.check_chess_over(message, True):
+                    return
+            else:
+                # User gets the first turn, show chess board, wait for user's reply
+                board_img_bytestream = await asyncio.to_thread(
+                    chess_manager.render_board_image,
+                    None,
+                    True if bot_color==chess.WHITE else False
+                )
+                board_img = discord.File(fp=board_img_bytestream, filename="board.png")
+                await message.reply("Your turn", file=board_img)
+
+    async def play_chess_turn(self, message:discord.Message):
+        """Handle user's chess turn"""
+        # Extract move and comment from the message
+        move_str, user_comment = self.parse_chess_turn_message(message.content, self.discord_client.user.id)
+        
+        if not move_str:
+            await message.reply("I don't think that is a legal move. Can you try again?")
+            return
+        
+        chess_manager:ChessManager = self.active_chess_game[message.channel.id]["manager"]
+        try:
+            # Make the move
+            chess_manager.make_move(move_str)
+        except ValueError:
+            await message.reply("I don't think that is a legal move. Can you try again?")
+            return
+
+        if await self.check_chess_over(message, False):
+            return
+        async with message.channel.typing():
+            await self.play_bot_turn(message, False, move_str, user_comment)
+            if await self.check_chess_over(message, True):
+                return
+
+    async def chess_surrender(self, message:discord.Message):
+        """Handle user's surrender in chess"""
+        del self.active_chess_game[message.channel.id]
+        reply = await self.get_response("System Notification: Your opponent surrendered the chess game. Say something to them.", message.channel.id)
+        await self.send_reply(message, reply)
+
+    async def show_board(self, message:discord.Message):
+        """Reveal the board without making a move"""
+        chess_manager: ChessManager = self.active_chess_game[message.channel.id]["manager"]
+        bot_color = self.active_chess_game[message.channel.id]["bot_color"]
+        bot_move: chess.Move = chess_manager.get_last_move()
+        board_img_bytestream = await asyncio.to_thread(
+            chess_manager.render_board_image,
+            last_move=bot_move,
+            flipped=True if bot_color==chess.WHITE else False
+        )
+        board_img = discord.File(fp=board_img_bytestream, filename="board.png")
+        message.reply(board_img)
+
     def __del__(self):
         try:
             if self.bot_name:
@@ -403,7 +619,7 @@ class GoogleBot(BaseBot):
         )
         config = types.GenerateContentConfig(
             response_mime_type="application/json",
-            response_schema=WeatherRequest,
+            response_schema=WeatherRequest
         )
 
         attempt = 0
@@ -527,3 +743,35 @@ class GoogleBot(BaseBot):
                         raise Exception(f"Failed to get weather info for {destination} after retries: {e}")
 
         return weather_info
+
+    async def build_initial_chess_setup(self, message:discord.Message):
+        """Build the starting setup of a chess game based on user's message"""
+        prompt = str(f"{message.content}\n\n"
+                     f"Analyze this text and determine the starting setup for the chess game.")
+        config = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=ChessGameSetup
+        )
+        attempt = 0
+        max_retries = 3
+        retry_delay = 2
+
+        while attempt <= max_retries:
+            try:
+                response = await asyncio.to_thread(
+                    self.genai_client.models.generate_content,
+                    model=self.model_name,
+                    contents=prompt,
+                    config=config
+                )
+                return response.parsed
+            except errors.APIError as e:
+                if e.code not in (503, 429):
+                    raise Exception(f"Unable to extract board setup: {e}")
+                if attempt < max_retries:
+                    LogSystem().write('w', f"Model is having issue extracting board setup: {e}\nRetrying (attempt {attempt+1}/{max_retries}) in {retry_delay}s...")
+                    await asyncio.sleep(retry_delay)
+                    attempt += 1
+                    retry_delay *= 2
+                else:
+                    raise Exception(f"Timeout while extracting board setup: {e}")

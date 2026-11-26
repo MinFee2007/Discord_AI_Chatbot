@@ -1,0 +1,8 @@
+from pydantic import BaseModel, Field
+class ChessGameSetup(BaseModel):
+    first_turn: bool|None = Field(description="Flag for first turn of the chess game, if the user ask you to go first (which normally means you would be playing as the white side unless the user wants to change the rule of the side to get the first move), input True. If the user wants to go first (which normally means you would be playing as the black side unless the user wants to change the rule of the side to get the first move), input False. If the user does not say anything about who would go first then input None")
+    board_setup: str = Field(description="The board setup at the start of the game in case the user wants to set up the chess board in a special way. Always input Forsyth-Edwards Notation (FEN) to describe the initial board setup. If the user does not say anything about the initial board setup then it means they want the casual board setup, in that case, just input 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'.")
+
+class ChessResponse(BaseModel):
+    move: str = Field(description="The chess move you are going make. It has to be a legal move based on the board state. If you are not sure about your move, you can input 1 of the 3 recommended moves provided from the system. Always input your move based on Universal Chess Interface (UCI) protocol.")
+    comment: str|None = Field(description="While having the chess game. Do keep the other player busy by talking to them. You can talk about any kind of topic. If you cannot think of anything to say, input None")

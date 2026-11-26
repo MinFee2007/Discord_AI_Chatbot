@@ -10,7 +10,7 @@ class Alice(GoogleBot):
             token_env_var="ALICE",
             bot_name="Alice Liddell",
             model_name="gemini-3.5-flash-lite",
-            history_filepath="histories/history_alice.json",
+            history_filepath="histories/chat_history_alice.json",
             prompt_filepath="prompts/bot_alice_sysprompt.txt",
             permission_filepath="permission/bot_alice_permission_cmd.txt",
             forbidden_channels_filepath="permission/bot_alice_forbidden_channel.txt",
@@ -83,7 +83,7 @@ class Alice(GoogleBot):
 
                 elif message.content.startswith(f'<@{self.discord_client.user.id}>, clean the house') or message.content.startswith(f'<@!{self.discord_client.user.id}>, clean the house'):
                     # Clear entire chat history (can only be used by me)
-                    if len(self.bot_permission_users) == 0 or (message.author.id == self.bot_permission_users[0]):
+                    if len(self.bot_permission_users) > 0 and (message.author.id == self.bot_permission_users[0]):
                         try:
                             self.clear_history_all()
                             await message.reply("I have finished cleaning the house.")
@@ -98,7 +98,7 @@ class Alice(GoogleBot):
 
                 elif message.content.startswith(f'<@{self.discord_client.user.id}>, write a new diary') or message.content.startswith(f'<@!{self.discord_client.user.id}>, write a new diary'):
                     # Clear bot log file (can only be used by me)
-                    if len(self.bot_permission_users) == 0 or (message.author.id == self.bot_permission_users[0]):
+                    if len(self.bot_permission_users) > 0 and (message.author.id == self.bot_permission_users[0]):
                         LogSystem().clear()
                         await message.reply("I have bought a new diary.")
                     else:
@@ -108,7 +108,7 @@ class Alice(GoogleBot):
 
                 elif message.content.startswith(f'<@{self.discord_client.user.id}>, take a nap') or message.content.startswith(f'<@!{self.discord_client.user.id}>, take a nap'):
                     # Put the bot into sleep mode (can only be used by me)
-                    if len(self.bot_permission_users) == 0 or (message.author.id == self.bot_permission_users[0]):
+                    if len(self.bot_permission_users) > 0 and (message.author.id == self.bot_permission_users[0]):
                         self.is_sleeping = True
                         LogSystem().write('n',f"User {message.author.name} put {self.bot_name} into sleep")
                         await message.reply("Goodnight!")
@@ -119,7 +119,7 @@ class Alice(GoogleBot):
 
                 elif message.content.startswith(f'<@{self.discord_client.user.id}>, wake up') or message.content.startswith(f'<@!{self.discord_client.user.id}>, wake up'):
                     # Put the bot out of sleep mode (can only be used by me)
-                    if len(self.bot_permission_users) == 0 or (message.author.id == self.bot_permission_users[0]):
+                    if len(self.bot_permission_users) > 0 and (message.author.id == self.bot_permission_users[0]):
                         self.is_sleeping = False
                         LogSystem().write('n',f"User {message.author.name} woke {self.bot_name} up")
                         await message.reply("Good morning!")
@@ -130,7 +130,7 @@ class Alice(GoogleBot):
 
                 elif message.content.startswith(f'<@{self.discord_client.user.id}>, do not come in ') or message.content.startswith(f'<@!{self.discord_client.user.id}>, do not come in '):
                     # Add a channel into forbidden channels (the command can be either "do not come in here" or "do not come in <channel_id>")
-                    if len(self.bot_permission_users) == 0 or (message.author.id == self.bot_permission_users[0]):
+                    if len(self.bot_permission_users) > 0 and (message.author.id == self.bot_permission_users[0]):
                         try:
                             # Get target channel id
                             target_channel_id = None
@@ -156,7 +156,7 @@ class Alice(GoogleBot):
 
                 elif message.content.startswith(f'<@{self.discord_client.user.id}>, you can come in ') or message.content.startswith(f'<@!{self.discord_client.user.id}>, you can come in '):
                     # Remove a channel from forbidden channels (the command can be either "you can come in here" or "you can come in <channel_id>")
-                    if len(self.bot_permission_users) == 0 or (message.author.id == self.bot_permission_users[0]):
+                    if len(self.bot_permission_users) > 0 and (message.author.id == self.bot_permission_users[0]):
                         try:
                             # Get target channel id
                             target_channel_id = None
@@ -182,7 +182,7 @@ class Alice(GoogleBot):
 
                 elif message.content.startswith(f'<@{self.discord_client.user.id}>, stay away from ') or message.content.startswith(f'<@!{self.discord_client.user.id}>, stay away from '):
                     # Add a user into forbidden users ("stay away from <user_id>")
-                    if len(self.bot_permission_users) == 0 or (message.author.id == self.bot_permission_users[0]):
+                    if len(self.bot_permission_users) > 0 and (message.author.id == self.bot_permission_users[0]):
                         try:
                             # Get target user id
                             target_user_id = None
@@ -205,7 +205,7 @@ class Alice(GoogleBot):
 
                 elif (" is a friend" in message.content) and (message.content.startswith(f'<@{self.discord_client.user.id}>, ') or message.content.startswith(f'<@!{self.discord_client.user.id}>, ')):
                     # Remove a user from forbidden users ("user_id is a friend")
-                    if len(self.bot_permission_users) == 0 or (message.author.id == self.bot_permission_users[0]):
+                    if len(self.bot_permission_users) > 0 and (message.author.id == self.bot_permission_users[0]):
                         try:
                             parts = message.content.split(f"{self.discord_client.user.id}>, ")
                             if len(parts) > 1: parts = parts[1].split(" is a friend")
@@ -222,6 +222,55 @@ class Alice(GoogleBot):
                         if (message.author.id in self.forbidden_users) or (message.channel.id in self.forbidden_channels):
                             return
                         await message.reply("Sorry, I can't do that for you.")
+                elif message.content.startswith(f"<@{self.discord_client.user.id}>, let's play chess") or message.content.startswith(f"<@!{self.discord_client.user.id}>, let's play chess"):
+                    # Start a chess game
+                    if (message.author.id in self.forbidden_users) or (message.channel.id in self.forbidden_channels) or (message.channel.id in self.active_chess_game):
+                        return
+                    if self.is_sleeping:
+                        await message.reply(f"zzz *{self.bot_name} is sleeping peacefully* zzz")
+                        return
+                    try:
+                        await self.start_chess(message)
+                    except Exception as e:
+                        await message.reply("Sorry, I'm having a bit of an issue.")
+                        LogSystem().write('e',f"{e}")
+
+                elif message.content.startswith("Show the board"):
+                    # Reveal the board without making a move
+                    if (message.author.id in self.forbidden_users) or (message.channel.id in self.forbidden_channels) or (message.channel.id not in self.active_chess_game) or (self.active_chess_game[message.channel.id]["player_id"] != message.author.id):
+                        return
+                    if self.is_sleeping:
+                        await message.reply(f"zzz *{self.bot_name} is sleeping peacefully* zzz")
+                        return
+                    try:
+                        await self.show_board(message)
+                    except Exception as e:
+                        await message.reply("Sorry, I'm having a bit of an issue.")
+                        LogSystem().write('e',f"{e}")
+                elif message.content.startswith("move: "):
+                    # Make a move in the chess game
+                    if (message.author.id in self.forbidden_users) or (message.channel.id in self.forbidden_channels) or (message.channel.id not in self.active_chess_game) or (self.active_chess_game[message.channel.id]["player_id"] != message.author.id):
+                        return
+                    if self.is_sleeping:
+                        await message.reply(f"zzz *{self.bot_name} is sleeping peacefully* zzz")
+                        return
+                    try:
+                        await self.play_chess_turn(message)
+                    except Exception as e:
+                        await message.reply("Sorry, I'm having a bit of an issue.")
+                        LogSystem().write('e',f"{e}")
+                elif message.content.startswith("I surrender"):
+                    # Surrender in chess game
+                    if (message.author.id in self.forbidden_users) or (message.channel.id in self.forbidden_channels) or (message.channel.id not in self.active_chess_game) or (self.active_chess_game[message.channel.id]["player_id"] != message.author.id):
+                        return
+                    if self.is_sleeping:
+                        await message.reply(f"zzz *{self.bot_name} is sleeping peacefully* zzz")
+                        return
+                    try:
+                        await self.chess_surrender(message)
+                    except Exception as e:
+                        await message.reply("Sorry, I'm having a bit of an issue.")
+                        LogSystem().write('e',f"{e}")
                 else:
                     # Botchat features
                     if (message.author.id in self.forbidden_users) or (message.channel.id in self.forbidden_channels):
@@ -235,7 +284,7 @@ class Alice(GoogleBot):
                             await self.weather_forecast(message=message)
                         except Exception as e:
                             LogSystem().write('e',f"{e}")
-                            await message.reply("Sorry, I’m having a bit of an issue.")
+                            await message.reply("Sorry, I'm having a bit of an issue.")
                     else:
                         # Communicate with chatbot (can be used by everyone)
                         try:
@@ -243,4 +292,4 @@ class Alice(GoogleBot):
                         
                         except Exception as e:
                             LogSystem().write('e',f"{e}")
-                            await message.reply("Sorry, I’m having a bit of an issue.")
+                            await message.reply("Sorry, I'm having a bit of an issue.")

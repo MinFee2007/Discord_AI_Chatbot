@@ -12,7 +12,9 @@ Project_DiscordBot
      ├── bot_alice_google.py
      ├── bot_alice_ollama.py
      ├── bot_base.py
+     ├── manager_chess.py
      ├── manager.py
+     ├── output_chess.py
      ├── output_weather.py
      └── system_log.py
 ├── .env
