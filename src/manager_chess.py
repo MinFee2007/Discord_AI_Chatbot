@@ -1,5 +1,6 @@
 import chess, math, time
 import chess.svg
+import cairosvg
 import io
 
 PIECE_VALUES = {
@@ -82,12 +83,13 @@ KING_EG_PST:list[list[int]] = [
 ]
 
 class ChessManager:
-    def __init__(self):
+    def __init__(self, max_depth = 10, time_limit_ns = 800_000_000):
         self.board = chess.Board()
+        self.max_depth = max_depth
+        self.time_limit_ns = time_limit_ns
 
     def render_board_image(self, last_move: chess.Move | None = None, flipped: bool = False) -> io.BytesIO:
         """Render the current board state into PNG bytes stream to send onto Discord"""
-        import cairosvg
         svg_data = chess.svg.board(
             board=self.board,
             lastmove=last_move,
@@ -240,18 +242,19 @@ class ChessManager:
                     break
             return min_score, best_move
 
-    def get_best_move(self, time_limit_ns:int, top_k:int=3) -> list[tuple[chess.Move, float]]:
+    def get_best_move(self, time_limit_ns:int|None=None, top_k:int=3) -> list[tuple[chess.Move, float]]:
         """Get best move for the next turn using iterative deepening with a limit of thinking time"""
         board_state = self.board.copy()
         if self.is_terminal(board_state): return []
-        max_depth = 10
         is_white_turn = (board_state.turn == chess.WHITE)
+        if time_limit_ns == None:
+            time_limit_ns = self.time_limit_ns
         end_time = time.perf_counter_ns() + time_limit_ns
 
         ordered_moves = list(board_state.legal_moves)
         best_top_moves: list[tuple[chess.Move, float]] = []
 
-        for depth in range(1, max_depth+1):
+        for depth in range(1, self.max_depth+1):
             current_scored_moves: list[tuple[chess.Move, float]] = []
             alpha = -math.inf
             beta = math.inf

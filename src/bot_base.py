@@ -32,6 +32,9 @@ class BaseBot:
         self.forbidden_channels:list[int] = []
         self.forbidden_users:list[int] = []
         self.active_chess_game:dict[int,dict] = {} # {channel_id:{"manager":ChessManager(), "player_id": int, "bot_color":chess.BLACK|chess.WHITE}}
+        self.default_chess_max_depth: int = 10
+        self.default_chess_time_limit_ns: int = 800_000_000
+        self.chess_manager_config = {} # {channel_id:{"max_depth":int,"time_limit_ns":int}}
 
         # Configure intents and initialize the client as an instance attribute
         intents = discord.Intents.default()
@@ -284,6 +287,63 @@ class BaseBot:
 
             await self.send_reply(message=message,text=reply)
 
+    async def set_chess_manager_config(self, message:discord.Message):
+        """Configure chess setting"""
+        bot_id = self.discord_client.user.id
+        cleaned = (
+            message.content
+            .replace(f"<@{bot_id}>", "")
+            .replace(f"<@!{bot_id}>", "")
+            .lstrip(", ")
+        )
+        match = re.match(r"^config\s+chess\s+(.+)$", cleaned, flags=re.IGNORECASE)
+        if not match:
+            await message.reply("Invalid syntax. Use: 'config chess <max_depth> <time_limit_ns>' or 'config chess default'.")
+            return
+        
+        args_str = match.group(1)
+
+        if args_str.lower() == "default":
+            self.chess_manager_config[message.channel.id] = {
+                "max_depth": self.default_chess_max_depth,
+                "time_limit_ns": self.default_chess_time_limit_ns
+            }
+            if message.channel.id in self.active_chess_game:
+                manager:ChessManager = self.active_chess_game[message.channel.id]["manager"]
+                manager.max_depth = self.default_chess_max_depth
+                manager.time_limit_ns = self.default_chess_time_limit_ns
+            reply = (
+                f"Chess engine configuration reset to default:\n"
+                f"(max_depth={self.default_chess_max_depth}, time_limit_ns={self.default_chess_time_limit_ns})."
+            )
+            await message.reply(reply)
+            return
+
+        parts = args_str.split(" ")
+        if len(parts) != 2 or not (parts[0].isdigit() and parts[1].isdigit()):
+            await message.reply("Please provide two positive integers for '<max_depth>' and '<time_limit_ns>', or 'default'.")
+            return
+
+        max_depth = int(parts[0])
+        time_limit_ns = int(parts[1])
+
+        if not (1 <= max_depth <= 20):
+            await message.reply("'max_depth' must be between 1 and 20.")
+            return
+        if not (10_000_000 <= time_limit_ns <= 10_000_000_000):  # 10ms to 10s
+            await message.reply("'time_limit_ns' must be between 10,000,000 (0.01s) and 10,000,000,000 (10s).")
+            return
+
+        self.chess_manager_config[message.channel.id] = {
+            "max_depth": max_depth,
+            "time_limit_ns": time_limit_ns
+        }
+        reply = (
+            f"Chess engine configuration is set:\n"
+            f"(max_depth={max_depth}, time_limit_ns={time_limit_ns})."
+        )
+        await message.reply(reply)
+
     def parse_chess_turn_message(self, raw_content: str, bot_id: int) -> tuple[str | None, str]:
         """
         Extract (move_str, user_comment) from user message:
@@ -359,7 +419,7 @@ class BaseBot:
         # Getting best moves recommended for bot
         best_moves = await asyncio.to_thread(
             chess_manager.get_best_move,
-            time_limit_ns=800_000_000,
+            time_limit_ns=None,
             top_k=3
         )
         # Format into the best moves list
@@ -432,8 +492,13 @@ class BaseBot:
             raise Exception("Unable to identify the bot's side")
 
         # Initialize the chess game
+        max_depth = self.default_chess_max_depth
+        time_limit_ns = self.default_chess_time_limit_ns
+        if message.channel.id in self.chess_manager_config:
+            max_depth = self.chess_manager_config[message.channel.id]["max_depth"]
+            time_limit_ns = self.chess_manager_config[message.channel.id]["time_limit_ns"]
         self.active_chess_game[message.channel.id] = {
-            "manager": ChessManager(),
+            "manager": ChessManager(max_depth, time_limit_ns),
             "player_id": message.author.id,
             "bot_color": bot_color
         }

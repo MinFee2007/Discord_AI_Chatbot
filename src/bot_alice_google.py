@@ -222,6 +222,20 @@ class Alice(GoogleBot):
                         if (message.author.id in self.forbidden_users) or (message.channel.id in self.forbidden_channels):
                             return
                         await message.reply("Sorry, I can't do that for you.")
+                elif message.content.startswith(f"<@{self.discord_client.user.id}>, config chess") or message.content.startswith(f"<@!{self.discord_client.user.id}>, config chess"):
+                    # Configure chess engine
+                    if (message.author.id in self.bot_permission_users) and (message.author.id not in self.forbidden_users):
+                        try:
+                            await self.set_chess_manager_config(message)
+                
+                        except Exception as e:
+                            await message.reply("Sorry, I couldn't clean this room.")
+                            LogSystem().write('e', f"User {message.author.name} got an error while clearing history for channel {target_channel_id}: {e}")
+                    else:
+                        if (message.author.id in self.forbidden_users) or (message.channel.id in self.forbidden_channels):
+                            return
+                        await message.reply("Sorry, I can't do that for you.")
+
                 elif message.content.startswith(f"<@{self.discord_client.user.id}>, let's play chess") or message.content.startswith(f"<@!{self.discord_client.user.id}>, let's play chess"):
                     # Start a chess game
                     if (message.author.id in self.forbidden_users) or (message.channel.id in self.forbidden_channels) or (message.channel.id in self.active_chess_game):
